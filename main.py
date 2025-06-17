@@ -131,7 +131,7 @@ def generate_address(name):
         logger.info(f"id: {id} address: {address}")
     logger.success(f"批量计算 {count} 钱包地址 -> generate/wallets-{name}.txt")
 
-def generate_balance(name):
+def generate_base_balance(name):
     datas = get_data_for_key(name)
     count = len(datas)
     while True:
@@ -169,7 +169,46 @@ def generate_balance(name):
         
         time.sleep(1)
     logger.success(f"批量查询 {count} 钱包地址 -> generate/wallets-{name}.txt")
-    
+
+def generate_bsc_balance(name):
+    datas = get_data_for_key(name)
+    count = len(datas)
+    while True:
+        if not datas:
+            logger.debug(f"nokey")
+            break
+        else:
+            data = datas.pop(0)
+            id = count-len(datas)
+        logger.debug(f"id: {id} data: {data}")
+        privatekey=data.split(',')[0]
+        address = get_address_by_key(privatekey)
+
+        web3_obj = Web3(Web3.HTTPProvider('https://bsc-rpc.publicnode.com'))
+        # 连接rpc节点
+        connected = web3_obj.is_connected()
+        if not connected:
+            logger.error(f"Ooops! Failed to eth.is_connected.")
+            raise Exception("Failed to eth.is_connected.")
+        
+        # 钱包地址
+        sender_address = web3_obj.eth.account.from_key(privatekey).address
+        sender_balance_eth = web3_obj.eth.get_balance(sender_address)
+        balance_eth = web3_obj.from_wei(sender_balance_eth, 'ether')
+        logger.debug(f"sender_balance_eth: {balance_eth} ETH")
+        # USDC合约地址
+        usdc_address = Web3.to_checksum_address('0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d')
+        usdc_contract = web3_obj.eth.contract(address=usdc_address, abi=contract_abi_usdc)
+        # 账户余额
+        sender_balance_usdc = usdc_contract.functions.balanceOf(sender_address).call()
+        balance_usdc = web3_obj.from_wei(sender_balance_usdc, 'mwei')
+        logger.debug(f"sender_balance_usdc: {balance_usdc} USDC")
+        
+        logger.info(f"id: {id} address: {address} balance: {balance_eth} ETH / {balance_usdc} USDC")
+        
+        time.sleep(1)
+    logger.success(f"批量查询 {count} 钱包地址 -> generate/wallets-{name}.txt")
+
 def choose_name() -> str:
     enter_name = [
         inquirer.Text('name', message="👉 输入名字")
@@ -196,9 +235,10 @@ def main():
             answer = select(
                 '选择',
                 choices=[
-                    Choice("🔥 批量生成ETH私钥",  'generate_privkey', shortcut_key="1"),
-                    Choice("🚀 批量计算ETH地址",  'generate_address', shortcut_key="2"),
-                    Choice("🚀 批量查询USDC余额", 'generate_balance', shortcut_key="3"),
+                    Choice("🔥 批量生成ETH私钥",    'generate_privkey',      shortcut_key="1"),
+                    Choice("🚀 批量计算ETH地址",    'generate_address',      shortcut_key="2"),
+                    Choice("🚀 批量查询Base链余额", 'generate_base_balance', shortcut_key="3"),
+                    Choice("🚀 批量查询BSC链余额",  'generate_bsc_balance',  shortcut_key="4"),
                     Choice('❌ Exit', "exit", shortcut_key="0")
                 ],
                 use_shortcuts=True,
@@ -210,9 +250,12 @@ def main():
             elif answer == 'generate_address':
                 name = choose_name()
                 generate_address(name)
-            elif answer == 'generate_balance':
+            elif answer == 'generate_base_balance':
                 name = choose_name()
-                generate_balance(name)
+                generate_base_balance(name)
+            elif answer == 'generate_bsc_balance':
+                name = choose_name()
+                generate_bsc_balance(name)
             elif answer == 'exit':
                 sys.exit()
     except KeyboardInterrupt:
