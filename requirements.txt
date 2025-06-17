@@ -1,0 +1,6 @@
+web3>=6.19.0
+requests>=2.31.0
+loguru>=0.7.2
+inquirer>=3.0.0
+termcolor>=2.4.0
+questionary>=2.0.1
